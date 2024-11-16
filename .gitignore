@@ -1,0 +1,4 @@
+yolov3.weights
+*.log
+*.pyc
+__pycache__/

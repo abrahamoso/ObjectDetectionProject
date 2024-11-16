@@ -1,22 +1,63 @@
 import cv2
 
-# Load Haar cascade classifiers
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
+def detect_faces_and_objects(frame):
+    # Paths to the YOLO configuration and class files
+    config_path = "config/yolov3.cfg"
+    weights_path = "yolov3.weights"  # Use your actual file location
+ 
+    names_path = "config/coco.names"
 
-def detect_faces_and_eyes(gray_frame, color_frame):
-    faces = face_cascade.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-    eye_centers = []
+    # Load YOLO model
+    net = cv2.dnn.readNet(weights_path, config_path)
 
-    for (x, y, w, h) in faces:
-        cv2.rectangle(color_frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-        roi_gray = gray_frame[y:y + h, x:x + w]
-        roi_color = color_frame[y:y + h, x:x + w]
-        eyes = eye_cascade.detectMultiScale(roi_gray)
+    # Load class labels
+    with open(names_path, "r") as f:
+        classes = [line.strip() for line in f.readlines()]
 
-        for (ex, ey, ew, eh) in eyes:
-            eye_center = (int(ex + ew / 2), int(ey + eh / 2))
-            cv2.circle(roi_color, eye_center, 5, (0, 255, 255), -1)
-            eye_centers.append(eye_center)
+    # Prepare the frame for YOLO
+    blob = cv2.dnn.blobFromImage(frame, 1 / 255.0, (416, 416), swapRB=True, crop=False)
+    net.setInput(blob)
 
-    return eye_centers
+    # Get detections
+    layer_names = net.getLayerNames()
+    
+    if isinstance(net.getUnconnectedOutLayers(), list):
+        output_layers = [layer_names[i[0] - 1] for i in net.getUnconnectedOutLayers()]
+    else:
+        output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
+
+    detections = net.forward(output_layers)
+
+    # Parse YOLO detections
+    height, width = frame.shape[:2]
+    boxes = []
+    confidences = []
+    class_ids = []
+    for output in detections:
+        for detection in output:
+            scores = detection[5:]
+            class_id = int(detection[4])  # Confidence of this detection
+            confidence = scores[class_id]
+            if confidence > 0.3:  # Adjust confidence threshold as needed
+                box = detection[0:4] * [width, height, width, height]
+                center_x, center_y, w, h = box.astype("int")
+                x = int(center_x - (w / 2))
+                y = int(center_y - (h / 2))
+                boxes.append([x, y, int(w), int(h)])
+                confidences.append(float(confidence))
+                class_ids.append(class_id)
+
+    # Apply Non-Maxima Suppression
+    indices = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
+    detected_objects = []
+    if len(indices) > 0:
+        for i in indices.flatten():
+            x, y, w, h = boxes[i]
+            detected_objects.append({
+                "box": (x, y, w, h),
+                "confidence": confidences[i],
+                "class_id": class_ids[i],
+                "class_name": classes[class_ids[i]]
+            })
+
+    return detected_objects
