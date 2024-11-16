@@ -1,4 +1,12 @@
+# Ignore YOLO weights
+yolov5s.pt
 yolov3.weights
-*.log
-*.pyc
+yolov3.cfg
+
+# Ignore virtual environments
+venv/
 __pycache__/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
