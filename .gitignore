@@ -2,7 +2,8 @@
 yolov5s.pt
 yolov3.weights
 yolov3.cfg
-
+yolo5nu.pt
+yolo5su.pt
 # Ignore virtual environments
 venv/
 __pycache__/
